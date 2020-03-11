@@ -6,7 +6,7 @@ AccelStepper moteurDroit(1, STEP_D, DIR_D);//declatation du moteur droit
 
 Robot grandRobot;
 
-byte etat=1, etatp=0,reception_tram[73];
+byte etat=1, etatp=0,reception_tram[73],com=0,stop=0;
 int i=0,go=0, turndepart=0,turnarrive=0,turnar,turnactu=0,etatD=0,a=0,b=0;
 
 double angletraj=0,angleactu=0,angleTurn1=0,angleTurn2=0,anglevoulu=0, Dan=0,deplacement[18][3];
@@ -103,7 +103,10 @@ void setup() {
 
 
 
-Wire.onReceive(manageEvent);
+Wire.onReceive(manageEvent);//donne la fonction a ouvrire l'or de la réception de dune trasmition
+
+Wire.onRequest(requestEvent);//va envoyer se qui se trouve dans la fonciton
+
  // Définition de la fonction qui prendra en charge les informations reçues sur le bus I2C.
  //if (Wire.available() > 0) {
    /*//Serial.print("HELLO");
@@ -129,7 +132,7 @@ Wire.onReceive(manageEvent);
   pinMode(SLEEP_G, OUTPUT);    //le sleep se met a l'état bas pour une carte fonctionelle
   digitalWrite(SLEEP_G, HIGH);
 
-  //initialisation du //moteur doit
+  //initialisation du //moteur droit
   pinMode(RESET_D, OUTPUT);    //le reset se fait a l'état bas
   digitalWrite(RESET_D, HIGH);
   pinMode(SLEEP_D, OUTPUT);    //le sleep se met a l'état bas pour une carte fonctionelle
@@ -151,6 +154,10 @@ Wire.onReceive(manageEvent);
 
 
 void loop(){
+  if (stop==1){ //Si la Stratégie demande à s'arreter (car détection)
+    etat=0; // alors renvoi à l'état d'arret
+  }
+
   switch (etat){
 
     case 0:
@@ -163,7 +170,7 @@ void loop(){
     Serial.println(i);
     Serial.println("_______");
 
-
+    com=1; //le robot va se mouvoir
     i+=1;
 
     anglevoulu=deplacement[i][3]/100;
@@ -316,8 +323,8 @@ void loop(){
       etat=1;
       etatp=4;
       angleactu=anglevoulu;
+      com=0; //envoi que le robot a fini le déplacement
       delay(2000);
-
     }
 
     break;
@@ -326,10 +333,13 @@ void loop(){
   }
 
 
-void manageEvent(int howMany,i) {
+void manageEvent(int howMany) {
       // Lit la donnée suivante, disponible sur le bus I2C.
-      int j=0;
 
+    if (howMany>1){
+      stop=Wire.read();
+    }
+    else{
       for (int k=0; k<howMany; k++){
         reception_tram[k]= Wire.read();
       }
@@ -343,12 +353,9 @@ void manageEvent(int howMany,i) {
         Serial.println(deplacement[i][2]);
         Serial.println(deplacement[i][3]);
       }
-
-      //Serial.print("Howmany ");
-      //Serial.println(howMany);
-      /*
-      Serial.println("____");
-      for(int i=0;i<howMany;i++){
-        Serial.println(reception_tram[i]);
-      }*/
+    }
  }
+
+void requestEvent(){
+  Wire.write(com);
+}

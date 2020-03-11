@@ -22,3 +22,5 @@
 #define DIR_D 12
 
 void manageEvent(int howMany);
+
+void requestEvent();
