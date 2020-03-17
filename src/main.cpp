@@ -11,11 +11,7 @@ int i=0,go=0, turndepart=0,turnarrive=0,turnar,turnactu=0,etatD=0,a=0,b=0;
 
 double angletraj=0,angleactu=0,angleTurn1=0,angleTurn2=0,anglevoulu=0, Dan=0,deplacement[18][3];
 
-// Variable booléenne permettant de basculer sur les 2 modes suivants :
-//  - soit c'est la pression du bouton qui permet de modifier la couleur de la LED (par défaut)
-//  - soit c'est le fait de recevoir des signaux sur le bus I2C qui permet de modifier la couleur de la LED
-//     (activé automatiquement dés la réception d'une valeur sur le bus I2C; ce qui désactive totalement
-// l'effet du bouton, jusqu'à réinitialisation de l'Arduino).
+
 bool receivedI2CSignal = false;
 
 
@@ -160,21 +156,21 @@ void loop(){
 
   switch (etat){
 
-    case 0:
+    case 0: // Le robot doit s'arreter
     grandRobot.stop();
     break;
 
-    case 1:
+    case 1: // Algo pour trouver le turn et le go
 
-    Serial.println("___________________");
-    Serial.println(i);
-    Serial.println("_______");
+    //Serial.println("___________________");
+    //Serial.println(i);
+    //Serial.println("_______");
 
     com=1; //le robot va se mouvoir
     i+=1;
 
     anglevoulu=deplacement[i][3]/100;
-    Serial.println(anglevoulu);
+    //Serial.println(anglevoulu);
 
     // Calcul GO
     go = (float)sqrt((double)pow((deplacement[i][1]-deplacement[i-1][1]),2)+pow((deplacement[i][2]-deplacement[i-1][2]),2));
@@ -234,7 +230,6 @@ void loop(){
     //Serial.println(go);
 
 
-
     if(angleTurn1>=PI/2 || angleTurn1<=-PI/2){
       if (angleTurn1>0)angleTurn1-=PI;//-angleTurn1;
       else angleTurn1=PI+angleTurn1;
@@ -271,10 +266,6 @@ void loop(){
     //Serial.println(go);
 
 
-
-
-
-
   //  if (angleTurn1>PI) angleTurn1-=2*PI;
   //  if (angleTurn2>PI) angleTurn2-=2*PI;
 
@@ -289,40 +280,31 @@ void loop(){
 
     break;
 
-    case 2://turndepart
+    case 2://Premier turn pour aller à la position suivante
 
-    //////Serial.print(turndepart);
     grandRobot.turn(angleTurn1,etat);
-    if(grandRobot.fini()==1){
-
-      etat=3;
-      etatp=2;
+    if(grandRobot.fini()==1){//Quand c'est fini
+      etat=3;//Passe à l'état Go
+      etatp=2;//Mémorise l'état auquel il sort
     }
-    //if(i==6)etat=0;
     break;
 
-    case 3://go
-    //////Serial.print(etat);
+    case 3://Go
+    //Serial.print(etat);
     grandRobot.go(go);
     if(grandRobot.fini()==1){
-      etat=4;
-      etatp=3;
-      /*
-      if(turnarrive>180){//pour eviter de fair plus que 180 degrai
-        turnarrive=360-turnarrive;
-        turnarrive=turnarrive*-1;
-      }
-      */
+      etat=4;//Passe à l'état Turn
+      etatp=3;//Mémorise l'état auquel il sort
     }
 
     break;
 
-    case 4://turn
+    case 4://Turn pour être à l'angle voulu final pour diverses actions à faire
     grandRobot.turn(angleTurn2,etat);
     if(grandRobot.fini()==1){
-      etat=1;
-      etatp=4;
-      angleactu=anglevoulu;
+      etat=1;//Retourne à l'algo du début
+      etatp=4;//Mémorise l'état auquel il sort
+      angleactu=anglevoulu;//Actualise l'angle auquel il se trouve à la fin du déplacement
       com=0; //envoi que le robot a fini le déplacement
       delay(2000);
     }
@@ -332,13 +314,18 @@ void loop(){
     }
   }
 
-
+// Lit la donnée disponible sur le bus I2C.
+//howMany représente le nombre de trames/octets arrivant à cette adresse
 void manageEvent(int howMany) {
-      // Lit la donnée suivante, disponible sur le bus I2C.
 
-    if (howMany>1){
-      stop=Wire.read();
+    //Si il n'y a qu'une trame
+    //C'est qu'il s'agit d'une trame disant qu'il y a eu détection d'obstacle
+    //Le robot doit donc s'arreter
+    if (howMany<=1){
+      stop=Wire.read();//envoie 1 à stop pour dire de s'arreter
     }
+
+    //Sinon c'est qu'il s'agit d'une position à lire
     else{
       for (int k=0; k<howMany; k++){
         reception_tram[k]= Wire.read();
@@ -356,6 +343,6 @@ void manageEvent(int howMany) {
     }
  }
 
-void requestEvent(){
+void requestEvent(){//Renvoie à la carte Stratégie si il est arrivé à la position ou non
   Wire.write(com);
 }
