@@ -7,12 +7,12 @@ AccelStepper moteurDroit(1, STEP_D, DIR_D);//declatation du moteur droit
 Robot grandRobot;
 
 byte etat=1, etatp=0,reception_tram[73],com=0,stop=0;
-int i=0,go=0, turndepart=0,turnarrive=0,turnar,turnactu=0,etatD=0,a=0,b=0;
+int i=-1,go=0, turndepart=0,turnarrive=0,turnar,turnactu=0,etatD=0,a=0,b=0;
 
-double angletraj=0,angleactu=0,angleTurn1=0,angleTurn2=0,anglevoulu=0, Dan=0,deplacement[18][3];
+double angletraj=0,angleactu=0,angleTurn1=0,angleTurn2=0,anglevoulu=0,deplacement[18][3];
 
 
-bool receivedI2CSignal = false;
+bool receivedI2CSignal = false, recu = false;
 
 
 void setup() {
@@ -98,7 +98,6 @@ void setup() {
  Wire.begin(I2C_SLAVE_ADDRESS);
 
 
-
 Wire.onReceive(manageEvent);//donne la fonction a ouvrire l'or de la réception de dune trasmition
 
 Wire.onRequest(requestEvent);//va envoyer se qui se trouve dans la fonciton
@@ -150,27 +149,43 @@ Wire.onRequest(requestEvent);//va envoyer se qui se trouve dans la fonciton
 
 
 void loop(){
+
   if (stop==1){ //Si la Stratégie demande à s'arreter (car détection)
     etat=0; // alors renvoi à l'état d'arret
   }
 
   switch (etat){
 
+
     case 0: // Le robot doit s'arreter
     grandRobot.stop();
     break;
 
-    case 1: // Algo pour trouver le turn et le go
+    case 1:
+    if(recu==true){
+    /*  Serial.println(com);
+      Serial.print("Recu");
+      Serial.println(recu);
+      delay(200);*/
+      etat=2;
+      com=1; //le robot va se mouvoir
+      recu=false; //la prochaine position n'est plus sue
+    }
+
+    break;
+
+    case 2: // Algo pour trouver le turn et le go
 
     //Serial.println("___________________");
     //Serial.println(i);
     //Serial.println("_______");
 
-    com=1; //le robot va se mouvoir
-    i+=1;
 
     anglevoulu=deplacement[i][3]/100;
     //Serial.println(anglevoulu);
+
+    Serial.println(deplacement[i][1]);
+    Serial.println(deplacement[i][2]);
 
     // Calcul GO
     go = (float)sqrt((double)pow((deplacement[i][1]-deplacement[i-1][1]),2)+pow((deplacement[i][2]-deplacement[i-1][2]),2));
@@ -188,10 +203,6 @@ void loop(){
       else angletraj=3*PI/2;
 
     }
-    //Serial.print("angleTurn");
-    //Serial.print(angleTurn2*360/(2*PI));
-    //Serial.print("angletraj");
-    //Serial.println(angleTurn1*360/(2*PI));
 
 
     angleTurn1=angletraj-angleactu+2*PI; // calcul angle pour avoir la bonne trajctoire à partir de l'angle actuel
@@ -199,23 +210,10 @@ void loop(){
 
     //angleTurn2=angleTurn2%(2*PI);
 
-
-    //Serial.print("angletraj");
-    //Serial.println(angleTurn1*360/(2*PI));
-
-    ////Serial.print("angleTurn");
-    ////Serial.print(angleTurn2*360/(2*PI));
-
     while(angleTurn1>=2*PI || angleTurn1<=-2*PI){
       if (angleTurn1>0)angleTurn1-=2*PI;
       else angleTurn1+=2*PI;
     }
-
-
-    //Serial.print("angletraj");
-    //Serial.println(angleTurn1*360/(2*PI));
-
-
 
     // Optimisation rotation ( sens trigo--> sens horaire)
     if(angleTurn1>=PI || angleTurn1<=-PI){
@@ -224,34 +222,21 @@ void loop(){
     }
 
 
-    //Serial.print("angletraj");
-    //Serial.print(angleTurn1*360/(2*PI));
-    //Serial.print("go");
-    //Serial.println(go);
-
-
     if(angleTurn1>=PI/2 || angleTurn1<=-PI/2){
-      if (angleTurn1>0)angleTurn1-=PI;//-angleTurn1;
+      if (angleTurn1>0)angleTurn1-=PI;
       else angleTurn1=PI+angleTurn1;
-      //angleTurn2+=PI;
       go*=-1;
     }
 
-    //Serial.print("go");
-    //Serial.println(go);
 
     angleTurn2=anglevoulu-angleTurn1-angleactu;//-angleactu; // calcul angle pour pouvoir tourner vers un angle spécial désiré
 
-    //Serial.print("angleTurn");
-    //Serial.println(angleTurn2*360/(2*PI));
 
     while(angleTurn2>=2*PI || angleTurn2<=-2*PI){
       if (angleTurn2>0)angleTurn2-=2*PI;
       else angleTurn2+=2*PI;
     }
 
-    //Serial.print("angleTurn");
-    //Serial.println(angleTurn2*360/(2*PI));
 
     if(angleTurn2>=PI || angleTurn2<=-PI){
       if (angleTurn2>0)angleTurn2-=2*PI;
@@ -269,9 +254,7 @@ void loop(){
   //  if (angleTurn1>PI) angleTurn1-=2*PI;
   //  if (angleTurn2>PI) angleTurn2-=2*PI;
 
-    //if (angleTurn2>PI)angleTurn2-=360;
-
-    if (angleTurn1!=0 || go!=0 || angleTurn2!=0)etat=2;
+    if (angleTurn1!=0 || go!=0 || angleTurn2!=0)etat=3;
 
     ////Serial.print("TUrn1");
     ////Serial.print(angleTurn1*360/(2*PI));
@@ -280,33 +263,34 @@ void loop(){
 
     break;
 
-    case 2://Premier turn pour aller à la position suivante
+    case 3://Premier turn pour aller à la position suivante
 
     grandRobot.turn(angleTurn1,etat);
     if(grandRobot.fini()==1){//Quand c'est fini
-      etat=3;//Passe à l'état Go
-      etatp=2;//Mémorise l'état auquel il sort
-    }
-    break;
-
-    case 3://Go
-    //Serial.print(etat);
-    grandRobot.go(go);
-    if(grandRobot.fini()==1){
-      etat=4;//Passe à l'état Turn
+      etat=4;//Passe à l'état Go
       etatp=3;//Mémorise l'état auquel il sort
     }
+    break;
+
+    case 4://Go
+
+    grandRobot.go(go);
+    if(grandRobot.fini()==1){
+      Serial.println("go");
+      etat=5;//Passe à l'état Turn
+      etatp=4;//Mémorise l'état auquel il sort
+    }
 
     break;
 
-    case 4://Turn pour être à l'angle voulu final pour diverses actions à faire
+    case 5://Turn pour être à l'angle voulu final pour diverses actions à faire
     grandRobot.turn(angleTurn2,etat);
     if(grandRobot.fini()==1){
-      etat=1;//Retourne à l'algo du début
-      etatp=4;//Mémorise l'état auquel il sort
+      etat=1;//Retourne à l'attente de trame
+      etatp=5;//Mémorise l'état auquel il sort
       angleactu=anglevoulu;//Actualise l'angle auquel il se trouve à la fin du déplacement
+      Serial.println("J'AI FINI");
       com=0; //envoi que le robot a fini le déplacement
-      delay(2000);
     }
 
     break;
@@ -325,22 +309,30 @@ void manageEvent(int howMany) {
       stop=Wire.read();//envoie 1 à stop pour dire de s'arreter
     }
 
-    //Sinon c'est qu'il s'agit d'une position à lire
-    else{
+    //Sinon c'est qu'il s'agit d'une position à lire (howMany=4 trames)
+    else if(howMany>1){
       for (int k=0; k<howMany; k++){
         reception_tram[k]= Wire.read();
       }
-
+        i++;
       //Conversion des bits des trames en valeurs numériques
-      for (int j=0; j<howMany/4;j++){
-        deplacement[i][1]=reception_tram[4*i+1]+((reception_tram[4*i]&=(0x70))<<4);
-        deplacement[i][2]=reception_tram[4*i+2]+((reception_tram[4*i]&=(0x0F))<<8);
-        deplacement[i][3]=reception_tram[4*i+3]+((reception_tram[4*i]&=(0x80))<<1);
+      //for (int j=0; j<howMany/4;j++){
+        deplacement[i][1]=reception_tram[1]+((reception_tram[0]&=(0x70))<<4);
+        deplacement[i][2]=((reception_tram[0]&=(0x0F))<<8);
+        deplacement[i][3]=reception_tram[3]+((reception_tram[0]&=(0x80))<<1);
+    /*  Serial.print("HowMany");
+        Serial.println(howMany);
         Serial.println(deplacement[i][1]);
         Serial.println(deplacement[i][2]);
-        Serial.println(deplacement[i][3]);
-      }
+        Serial.println(deplacement[i][3]);*/
+        
+        //on peut considérer que la première position est su dès que les position 0 et 1 ont été reçue
+        if (i>=1)recu = true;
+
+
+    //  }
     }
+
  }
 
 void requestEvent(){//Renvoie à la carte Stratégie si il est arrivé à la position ou non
